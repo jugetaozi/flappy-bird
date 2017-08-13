@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>flappy bird</title>
+
+    <style>
+        #canvas {
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+<canvas width="800" height="600" id="canvas"></canvas>
+<!--<video id="video" hidden="true" loop="false"></video>-->
+<script>
+    var canvas = document.getElementById("canvas");
+    var ctx = canvas.getContext('2d');
+
+    //    加载图片
+    var imageName = ['birds', 'land', 'pipe1', 'pipe2', 'sky'];
+    var imageObj = {};
+    //    遍历名称数组 生成路径  把图片保存进对象
+    for (var i = 0; i < imageName.length; i++) {
+        var image = new Image();
+        image.src = 'img/' + imageName[i] + '.png';
+//        用对象保存循环出来的图片
+        imageObj[imageName[i]] = image;
+    }
+
+    //遍历图片对象 加载完成后做一系列动作
+    var count = 0;
+    for (var k in imageObj) {
+        imageObj[k].onload = function () {
+            count++;
+            if (count == imageName.length) {
+                //实例化函数 封装起来
+                createRoles();
+            }
+        }
+    }
+
+    //加载音效
+    function vPlay(src,id) {
+        var player = document.querySelector('#video'+id);
+        player.src = src;
+        player.play();
+    }
+
+
+    //1.1需要创建一个 角色数组把 所有需要动画的角色添加进来 后期遍历这个数组播放即可
+    var roles = [];
+    function createRoles() {
+        //添加播放器
+        var oVideo = document.createElement("oVideo");
+        oVideo.innerHTML='<video id="video1" hidden="true" loop="false"></video>' +
+                '<video id="video2" hidden="true" loop="false"></video>' +
+                '<video id="video3" hidden="true" loop="false"></video>';
+        document.body.appendChild(oVideo);
+        //实例化天空
+        for (var i = 0; i < 2; i++) {
+            var skys = new Sky({
+                x: i * canvas.width,
+                y: 0,
+                image: imageObj['sky'],
+                ctx: ctx,
+                canvas: canvas
+            });
+            roles.push(skys);
+        }
+
+        //实例化陆地
+        for (var i = 0; i < 5; i++) {
+            var lands = new Land({
+                x: i * canvas.width / 4,
+                y: canvas.height - imageObj['land'].height,
+                canvas: canvas,
+                ctx: ctx,
+                image: imageObj['land']
+            })
+            roles.push(lands);
+        }
+
+        //实例化管道
+        var gap = 100;
+        for (var i = 0; i < 6; i++) {
+//            管道分为上下部分   //不能在draw里面生成  会跳动
+            var randomY = Math.random() * 200 + 100;
+            var Pipes = new Pipe({
+                canvas: canvas,
+                ctx: ctx,
+                x: 360 + (imageObj['pipe2'].width + gap) * i,
+                y: 0,
+                imageTop: imageObj['pipe2'],
+                imageBottom: imageObj['pipe1'],
+                height: canvas.height - imageObj['land'].height,
+                randomY: randomY,
+                gap: gap
+            })
+            Pipe.prototype.result=[0];//初始化result
+            roles.push(Pipes);
+        }
+
+        //实例化小鸟
+        var bird = new birds({
+            canvas: canvas,
+            ctx: ctx,
+            x: 100,
+            y: canvas.height / 6,
+            image: imageObj['birds'],
+            index: 0,
+            speed: 0,
+            maxHeight: canvas.height - imageObj['land'].height,
+            maxAngle: 40
+        })
+        roles.push(bird);
+
+        document.onclick= function () {
+            vPlay('video/fly.wav',2);
+        }
+        canvas.addEventListener("click", function () {
+            bird.speed = -5;
+        });
+        //实例化完毕后 执行播放函数
+        action();
+    }
+    //1.2 创建一个自动播放的函数
+    var actionFlag = true;
+    function action() {
+        if (actionFlag) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            roles.forEach(function (e) {
+                e.draw();
+            })
+            window.requestAnimationFrame(action);
+        } else {
+            vPlay('video/strike.wav',3);
+            restart();
+            return;
+        }
+    }
+
+    //6 重来选择框
+    function restart() {
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        setTimeout(function () {
+            document.querySelector('oVideo').remove();
+            var select = confirm('再来一次?');
+            if (select) {
+                actionFlag = true;
+                roles = []
+                createRoles();
+            } else {
+                canvas.remove();
+            }
+        }, 500)
+    }
+
+    //2-1.加载天空  需要构造函数  参数有 x
+    function Sky(info) {
+        this.x = info.x;
+        this.y = info.y;
+        this.canvas = info.canvas;
+        this.ctx = info.ctx;
+        this.speed = -2;
+        this.image = info.image;
+    }
+    //2-2 天空的原型  需要的方法有:
+    Sky.prototype = {
+        constructor: Sky,
+        draw: function () {
+            this.x += this.speed;
+            //越界判定
+            if (this.x <= -this.canvas.width) {
+                this.x = this.canvas.width;
+            }
+            this.ctx.drawImage(image, this.x, this.y, canvas.width, canvas.height);
+        }
+    }
+
+    //3-1. 加载陆地
+    function Land(info) {
+        this.x = info.x;
+        this.y = info.y;
+        this.canvas = info.canvas;
+        this.ctx = info.ctx;
+        this.speed = -2;
+        this.image = info.image;
+    }
+    //3-2. 陆地的原型
+    Land.prototype = {
+        constructor: Land,
+        draw: function () {
+            this.x += this.speed;
+            //            越界判断
+            if (this.x <= -canvas.width / 4) {
+                this.x = canvas.width;
+            }
+            this.ctx.drawImage(this.image, this.x, this.y);
+        }
+    }
+
+    //4-1. 加载管道
+    function Pipe(info) {
+        this.height = info.height;
+        this.x = info.x;
+        this.y = info.y;
+        this.canvas = info.canvas;
+        this.ctx = info.ctx;
+        this.imageTop = info.imageTop;
+        this.imageBottom = info.imageBottom;
+        this.speed = -2;
+        this.randomY = info.randomY;
+        this.gap = info.gap;
+    }
+    //4-2. 管道的原型
+    Pipe.prototype = {
+        constructor: Pipe,
+        result:[0],
+        draw: function () {
+            this.x += this.speed;
+//            越界判断
+            if (this.x <= -canvas.width / 6) {
+                this.x = canvas.width;
+            }
+            //添加音效
+            if (this.x == 100) {
+                this.result[0]++;
+                vPlay('video/ding.wav',1);
+            }
+            //计数板
+            this.ctx.font = '30px 微软雅黑';
+            this.ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            this.ctx.textBaseline = 'top';
+            this.ctx.fillText('Count:'+this.result,10,10);
+
+
+//            管道分为上下部分   //不能在draw里面生成  会跳动
+//            var randomY=Math.random()*300+100;
+            this.ctx.drawImage(this.imageTop, this.x, this.y, this.imageTop.width, this.randomY);
+            this.ctx.drawImage(this.imageBottom, this.x, this.y + this.randomY + this.gap, this.imageBottom.width, this.height - this.gap - this.randomY);
+
+            //需要把管道的路径画出来 用来做碰撞小鸟检测
+            this.ctx.rect(this.x, this.y, this.imageTop.width, this.randomY);
+            this.ctx.rect(this.x, this.y + this.randomY + this.gap, this.imageBottom.width, this.height - this.gap - this.randomY);
+
+        }
+    }
+
+    //5-1. 加载小鸟
+    function birds(info) {
+        this.speed = info.speed;
+        this.x = info.x;
+        this.y = info.y;
+        this.canvas = info.canvas;
+        this.ctx = info.ctx;
+        this.image = info.image;
+        this.index = info.index;
+        this.aSpeed = 0.3;
+        this.maxHeight = info.maxHeight;
+        this.maxAngle = info.maxAngle;
+//        this.lastTime=new Date();// 上一帧速度初始化
+        this.duration = 0;
+        this.startTime = new Date();
+    }
+    birds.prototype = {
+        constructor: birds,
+        draw: function () {
+            this.ctx.save();
+
+            //计时
+            var currentTime = new Date();
+            this.duration = Math.floor((currentTime - this.startTime) / 1000);
+            this.ctx.font = '30px 微软雅黑';
+            var text = this.ctx.measureText('你持续了' + Math.floor(this.duration / 60) + '分钟' + this.duration % 60 + '秒');
+            this.ctx.fillStyle = 'rgba(255,0,255,0.3)';
+            this.ctx.textBaseline = 'top';
+            this.ctx.fillText('你持续了' + Math.floor(this.duration / 60) + '分钟' + this.duration % 60 + '秒', this.canvas.width - text.width - 20, 10);
+
+            //小鸟死亡判断 撞到地面死亡
+            if (this.y + this.image.height >= this.maxHeight || this.y + this.image.height <= 0) {
+                actionFlag = false;
+            }
+            //小鸟死亡判断2 撞到柱子死亡 为了更精确 选取了四个采样点
+            if (this.ctx.isPointInPath(this.x + this.image.width * 3 / 12, this.y + this.image.height * 1 / 4) ||
+                    this.ctx.isPointInPath(this.x + this.image.width * 3 / 12, this.y + this.image.height * 3 / 4) ||
+                    this.ctx.isPointInPath(this.x + this.image.width * 1 / 12, this.y + this.image.height * 1 / 4) ||
+                    this.ctx.isPointInPath(this.x + this.image.width * 1 / 12, this.y + this.image.height * 3 / 4)
+            ) {
+                actionFlag = false;
+            }
+//            小鸟的倾斜角度
+            var angle = this.speed / 8 * this.maxAngle;
+            if (angle >= this.maxAngle) {
+                angle = this.maxAngle;
+            } else if (angle <= -this.maxAngle) {
+                angle = -this.maxAngle;
+            }
+            this.ctx.translate(this.x + this.image.width / 6, this.y + this.image.height / 2);
+            this.ctx.rotate(angle / 180 * Math.PI);
+
+            //自由落体运动  需要用到每一帧的时间
+//            var deltaTime=currentTime-this.lastTime;
+//            this.lastTime=currentTime;
+            //算出每一帧移动的距离 加到现在的上面
+            this.y += this.speed;
+
+//          第2种方法:this.y+=this.speed*deltaTime+this.aSpeed*deltaTime*deltaTime/2;
+
+            //把最新速度赋给speed
+            this.speed += this.aSpeed;
+
+            //要煽动翅膀 需要3张图轮流换
+            this.ctx.drawImage(this.image, this.image.width / 3 * this.index, 0,
+                    this.image.width / 3, this.image.height,
+                    -this.image.width / 6, -this.image.height / 2,
+                    this.image.width / 3, this.image.height);
+            this.index++;
+            if (this.index == 3) {
+                this.index = 0;
+            }
+
+            this.ctx.restore();
+//            var lastTime=new Date();
+        }
+    }
+
+</script>
+</body>
+</html>
